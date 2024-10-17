@@ -1,0 +1,16 @@
+{% extends "challenge.html" %}
+
+
+{% block input %}
+{% endblock %}
+
+
+{% block submit %}
+<button
+    id="challenge-submit"
+    class="challenge-submit btn btn-outline-secondary w-100 h-100" type="submit"
+    @click.debounce.500ms="submitChallenge()"
+>
+  Mark as complete <i class="fa-solid fa-check"></i>
+</button>
+{% endblock %}
