@@ -25,15 +25,22 @@ services:
         default:
         internal:
 
-#  nginx:
-#    image: nginx:stable
-#    restart: always
-#    volumes:
-#      - ./conf/nginx/http.conf:/etc/nginx/nginx.conf
-#    ports:
-#      - 80:80
-#    depends_on:
-#      - ctfd
+  nginx:
+    image: nginx:stable
+    restart: always
+    volumes:
+      - ./conf/nginx/http.conf:/etc/nginx/nginx.conf
+    ports:
+      - 80:80
+    depends_on:
+      - ctfd
+
+  whoami:
+    image: docker.io/traefik/whoami
+    restart: always
+    networks:
+        default:
+
 
   db:
     image: mariadb:10.11

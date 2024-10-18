@@ -3,12 +3,16 @@ from werkzeug.exceptions import Forbidden
 from CTFd.plugins import bypass_csrf_protection
 from CTFd.models import UserFieldEntries, Users, UserFields, db
 from CTFd.utils import get_app_config, get_config
+from CTFd.utils.logging import log
 from CTFd.utils.security.auth import login_user, logout_user
+from CTFd.utils.helpers import error_for
 from urllib.parse import urlencode
 from os import urandom
 import jwt
 
 def load(app):
+    #print(app.view_functions)
+
     @bypass_csrf_protection
     @app.route('/moodle/start', methods=['POST'])
     def auth_start():
@@ -17,6 +21,10 @@ def load(app):
 
         login_hint = request.form.get("login_hint")
         message_hint = request.form.get("lti_message_hint")
+
+        if str(login_hint) == "0":
+            course_url = get_app_config("MOODLE_COURSE_URL") or get_config("moodle_course_url")
+            return redirect(course_url)
 
         nonce = urandom(14).hex()
         session['lti_state'] = urandom(14).hex()
@@ -35,7 +43,7 @@ def load(app):
             "scope": "openid",
             "response_mode": "form_post",
             "response_type": "id_token",
-            "redirect_uri": "http://localhost:8000/moodle/callback",
+            "redirect_uri": "http://localhost/moodle/callback",
             "state": session['lti_state']
         }
 
@@ -48,7 +56,7 @@ def load(app):
         id_token = request.form.get("id_token")
         state = request.form.get("state")
 
-        print(session)
+        print(id_token)
 
         # TODO: Fix security issue :)
         #if session["lti_state"] != state:
@@ -68,24 +76,25 @@ def load(app):
         if client_id is None:
             abort(500, "Invalid client id")
 
-        print(id_token)
-
         PUBKEY="""-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxGDidz93ahyiAT3P/as5
-oIMqj0+oCVuVv8Cfixra0AvDtrIJmQKf316P8gB9McIB1W8Q3LykgAW6AUJkwIjK
-9LVRKVIW4jAnMjzdahxuP0jexmUX9ySEW6NkhInBKT/iFdX+o7+IIZdbrEYPEJYY
-oqUVJPmFAgVhTHRaiV7DSL4wXUr6iFgC/UInOUY8sHsFPV1HOQKp7ioRPd50p6np
-fx6lLN5JsF7TMa5zYRC2lOeKhk+LJTmTmfsM9vMAVDxsWV+t2GEKBYLRodf1Esvj
-sk7UM7TWalQJFiLvTC5AzDOlixQTAsPod0jNy9PBc2MNvC7Y3crCTCrldjmgDeps
-AwIDAQAB
------END PUBLIC KEY-----
-"""
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAvD0PY+b3EC/oNlgKAf+t
+RUErmVq1d/3rqYzFdWS2LC3lryFUIKuzHQJgmnmvJ50n7U/uD7jmUZy9+nDHU/pJ
+LjdyEnllGw8Qi69uArW/F8eiPEfmdVuS3wsMgf6O36oRkLBXld/hmEgiQIppR5Jm
+fZ+hPJASs88XY+YRFy4tPFA20LhmQyyRPY4ukyAtU/dxSxKjdttafaDXBimQrZaB
+VcuU0SuOm4jsTRg4dVjAeDpPnzjSzUJ4vZ+2mge9t4S9lNCp0P1DBJjxIQBaEeQk
+pVXT/QPMXQMJukj9s8xlx0P4sAUCjfdWzSNyLKyMYo4d4Tcfn9iB0F5M6RZzGtK5
+bwIDAQAB
+-----END PUBLIC KEY-----"""
 
-        decoded = jwt.decode(id_token, PUBKEY, audience=client_id, algorithms=["RS256"])
+        decoded = jwt.decode(id_token, PUBKEY, leeway=60, audience=client_id, algorithms=["RS256"])
 
         print(decoded)
 
         matr_nr = decoded["https://purl.imsglobal.org/spec/lti/claim/lis"]["person_sourcedid"]
+        username = decoded["name"]
+
+        if not username or not matr_nr:
+            abort(400, description=f"Missing username or matrikelnummer")
 
         oauth_id=matr_nr
         if oauth_id.startswith("108"):
@@ -109,11 +118,11 @@ AwIDAQAB
         
             # Create new user
             user = Users(
-                name=matr_nr,
+                name=username,
                 oauth_id=int(oauth_id),
                 verified=False,
             )
-            
+
             entry = UserFieldEntries(
                 type="user", value=None, user_id=user.id, field_id=field.id
             )
@@ -125,3 +134,19 @@ AwIDAQAB
         login_user(user)
 
         return redirect("/")
+
+    def auth_start():
+        start_url = get_app_config("MOODLE_START_URL") or get_config("moodle_start_url")
+
+        if start_url is None:
+            abort(500, "Invalid client id")
+
+        return redirect(start_url)
+
+    standard_login = app.view_functions["auth.login"]
+    app.view_functions["auth.login"] = auth_start
+
+
+    @app.route('/admin-login', methods=['GET', 'POST'])
+    def admin_auth():
+        return standard_login()
