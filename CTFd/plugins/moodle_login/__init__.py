@@ -92,6 +92,7 @@ bwIDAQAB
 
         matr_nr = decoded["https://purl.imsglobal.org/spec/lti/claim/lis"]["person_sourcedid"]
         username = decoded["name"]
+        email = decoded["email"]
 
         if not username or not matr_nr:
             abort(400, description=f"Missing username or matrikelnummer")
@@ -120,7 +121,11 @@ bwIDAQAB
             user = Users(
                 name=username,
                 oauth_id=int(oauth_id),
-                verified=False,
+                verified=True,
+                email=email,
+                language="en",
+                affiliation="Ruhr-Universität Bochum",
+                country="DE"
             )
 
             entry = UserFieldEntries(

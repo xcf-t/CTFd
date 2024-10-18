@@ -18,13 +18,14 @@ def load(app):
     def remote_desktop():
         return render_template("desktop.html")
 
-    @remote.route("/vscode-forward", methods=["GET"])
-    @remote.route("/vscode-forward/", websocket=True)
-    @remote.route("/vscode-forward/<path:service_path>", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"])
+    @app.route("/api/v1/forward/vscode/", websocket=True)
+    @app.route("/api/v1/forward/vscode/", methods=["GET"], defaults={'service_path': ''})
+    @app.route("/api/v1/forward/vscode/<path:service_path>", methods=["GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"])
     @authed_only
     @bypass_csrf_protection
-    def remote_forward(service_path=""):
-        prefix = "/remote/vscode-forward"
+    def remote_forward(service_path):
+        print(service_path)
+        prefix = "/api/v1/forward/vscode"
         path = request.full_path
         print(path)
         if not path.startswith(prefix):
