@@ -1,10 +1,12 @@
-from flask import Blueprint
+from flask import Blueprint, make_response, jsonify, request
 
 from CTFd.models import Challenges, Solves, db
 from CTFd.plugins import register_plugin_assets_directory
 from CTFd.plugins.challenges import CHALLENGE_CLASSES, BaseChallenge
 from CTFd.plugins.migrations import upgrade
 from CTFd.utils.user import authed, get_current_user
+from CTFd.cache import cache
+from CTFd.utils.challenges import get_solve_ids_for_user_id
 import json
 
 class TutorialChallenge(Challenges):
@@ -71,6 +73,7 @@ class TutorialValueChallenge(BaseChallenge):
 
 
 def load(app):
+    app.db.create_all()
     upgrade(plugin_name="tutorial_challenges")
     CHALLENGE_CLASSES["tutorial"] = TutorialValueChallenge
     register_plugin_assets_directory(
@@ -79,38 +82,53 @@ def load(app):
 
     #print(app.view_functions)
 
-    """
+    
     standard_attempt = app.view_functions["api.challenges_challenge_attempt"]
 
     def challenge_attempt_wrapper():
         result = standard_attempt()
-        if json.loads(result.get_data(True))["data"]["status"] == "already_solved":
-            if not request.is_json:
-                request_data = request.form
-            else:
-                request_data = request.get_json()
 
-            challenge_id = request_data.get("challenge_id")
+        if result.status_code == 200 and result.response is not None and len(result.response) > 0:
+            try:
+                resp = json.loads(result.response[0].decode())
 
-            challenge = Challenges.query.filter_by(id=challenge_id).first_or_404()
+                if resp["success"] == True and resp["data"]["status"] == "correct":
+                    d = {'success': True, 'data': {'status': 'correct', 'message': 'Marked as complete!'}}
+                    return make_response(jsonify(d), 200)
 
-            if challenge.type != "tutorial":
-                return result
+                if resp["success"] != True or resp["data"]["status"] != "already_solved":
+                    return result
 
+                if not request.is_json:
+                    request_data = request.form
+                else:
+                    request_data = request.get_json()
 
-            user = get_current_user()
+                challenge_id = request_data.get("challenge_id")
+                challenge = Challenges.query.filter_by(id=challenge_id).first_or_404()
+                if challenge.type != "tutorial":
+                    return result
+                    
+                user = get_current_user()
 
-            solve = Solves.query.filter_by(
-                account_id=user.account_id, challenge_id=challenge_id
-            ).first()
+                solve = Solves.query.filter_by(
+                    user_id=user.id, challenge_id=challenge_id
+                ).first()
 
-            db.session.delete(solve)
-            
-            return {
-                "success": True,
-                "data": {"status": "correct", "message": "Marked as unsolved!"},
-            }
+                db.session.delete(solve)
+                db.session.commit()
+
+                cache.delete_memoized(get_solve_ids_for_user_id, user_id=user.id)
+
+                d = {'success': True, 'data': {'status': 'paused', 'message': 'Marked as incomplete!'}}
+                return make_response(jsonify(d), 200)
+            except Exception as e:
+                print(e)
+                pass
+
         return result
 
+        
+
     app.view_functions["api.challenges_challenge_attempt"] = challenge_attempt_wrapper
-    """
+    

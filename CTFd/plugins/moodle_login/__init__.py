@@ -1,4 +1,4 @@
-from flask import redirect, render_template, request, session, url_for
+from flask import redirect, render_template, request, session, url_for, abort
 from werkzeug.exceptions import Forbidden
 from CTFd.plugins import bypass_csrf_protection
 from CTFd.models import UserFieldEntries, Users, UserFields, db

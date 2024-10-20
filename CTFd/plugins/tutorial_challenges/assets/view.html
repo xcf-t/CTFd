@@ -2,15 +2,28 @@
 
 
 {% block input %}
+<style>
+  .modal {
+    --bs-modal-width: 85%;
+  }
+</style>
 {% endblock %}
 
 
 {% block submit %}
 <button
     id="challenge-submit"
-    class="challenge-submit btn btn-outline-secondary w-100 h-100" type="submit"
+    {% if solved_by_me %} class="challenge-submit btn btn-outline-warning w-100 h-100"
+    {% else %} class="challenge-submit btn btn-outline-success w-100 h-100"
+    {% endif %}
+    
+    type="submit"
     @click.debounce.500ms="submitChallenge()"
 >
-  Mark as complete <i class="fa-solid fa-check"></i>
+  {% if solved_by_me %}
+    Mark as incomplete <i class="fa-solid fa-xmark"></i>
+  {% else %}
+    Mark as complete <i class="fa-solid fa-check"></i>
+  {% endif %}
 </button>
 {% endblock %}
