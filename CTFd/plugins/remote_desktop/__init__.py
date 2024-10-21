@@ -49,6 +49,9 @@ service_ports = {
     "terminal": 7681
 }
 
+def change_ssh_key(user_id: str, machine: str, ssh_key: str):
+    pass
+    # TODO: do this somehow
 
 def load(app):
     remote = Blueprint('remote', __name__, template_folder='templates', url_prefix="/remote")
